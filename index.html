@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Steady</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#FDFBF7" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0c0a09" media="(prefers-color-scheme: dark)">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Steady">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2917/2917995.png">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        stone: {
+                            50: '#fafaf9', 100: '#f5f5f4', 200: '#e7e5e4', 300: '#d6d3d1',
+                            400: '#a8a29e', 500: '#78716c', 600: '#57534e', 700: '#44403c',
+                            800: '#292524', 900: '#1c1917', 950: '#0c0a09',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- React & Lucide -->
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.2.0",
+        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+        "lucide-react": "https://esm.sh/lucide-react@0.294.0"
+      }
+    }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* Reset and base */
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+        
+        html, body, #root {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* iOS safe areas */
+        body {
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+            -webkit-tap-highlight-color: transparent;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        /* iOS Input Zoom Fix */
+        input, select, textarea { 
+            font-size: 16px !important; 
+            touch-action: manipulation;
+        }
+        
+        /* Scrollbar Hiding */
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Smooth scrolling */
+        .smooth-scroll {
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior-y: contain;
+        }
+        
+        /* Animations */
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        .animate-pop { animation: pop 0.3s ease-out; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-slide-up { animation: slideUp 0.3s ease-out; }
+        
+        @keyframes slideRight {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        .animate-slide-right { animation: slideRight 0.3s ease-out; }
+        
+        @keyframes zoomIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .animate-zoom-in { animation: zoomIn 0.2s ease-out; }
+    </style>
+</head>
+<body class="bg-[#FDFBF7] dark:bg-stone-950 transition-colors duration-300">
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { 
+            Droplet, Flame, ChevronDown, ChevronUp, Info, BarChart3, BookOpen, 
+            Plus, Minus, Utensils, LayoutDashboard, Target, ArrowRight, Scale, 
+            Dumbbell, Activity, Check, X, History, MessageSquare, Search, Hand, 
+            Settings, Save, LogOut, Leaf, ChevronLeft, ChevronRight, Calendar,
+            Moon, Sun, Download, Upload, Lightbulb, Edit3, TrendingUp, Heart, Coffee
+        } from 'lucide-react';
+
+        // --- LOCAL STORAGE ENGINE ---
+        const DB = {
+            getProfile: () => JSON.parse(localStorage.getItem('steady_profile') || 'null'),
+            saveProfile: (data) => localStorage.setItem('steady_profile', JSON.stringify(data)),
+            getLog: (date) => JSON.parse(localStorage.getItem(`steady_logs_${date}`) || 'null'),
+            saveLog: (date, data) => localStorage.setItem(`steady_logs_${date}`, JSON.stringify(data)),
+            getWeightHistory: () => JSON.parse(localStorage.getItem('steady_weight_history') || '[]'),
+            saveWeightLog: (log) => {
+                const history = DB.getWeightHistory();
+                const filtered = history.filter(h => h.date !== log.date);
+                filtered.push(log);
+                localStorage.setItem('steady_weight_history', JSON.stringify(filtered));
+            },
+            getRecentFoods: () => JSON.parse(localStorage.getItem('steady_recent_foods') || '[]'),
+            addRecentFood: (food) => {
+                let recent = DB.getRecentFoods();
+                recent = recent.filter(f => f.name.toLowerCase() !== food.name.toLowerCase());
+                recent.unshift(food);
+                localStorage.setItem('steady_recent_foods', JSON.stringify(recent.slice(0, 50)));
+            },
+            clearAll: () => {
+                if(confirm("Are you sure? This deletes all local data.")) {
+                    localStorage.clear();
+                    window.location.reload();
+                }
+            },
+            exportData: () => {
+                const data = {
+                    exportDate: new Date().toISOString(),
+                    version: '1.0',
+                    profile: DB.getProfile(),
+                    weightHistory: DB.getWeightHistory(),
+                    recentFoods: DB.getRecentFoods(),
+                    logs: {}
+                };
+                // Gather all daily logs
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith('steady_logs_')) {
+                        const date = key.replace('steady_logs_', '');
+                        data.logs[date] = JSON.parse(localStorage.getItem(key));
+                    }
+                }
+                return data;
+            },
+            downloadExport: () => {
+                const data = DB.exportData();
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `steady-backup-${getTodayStr()}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            },
+            importData: (jsonData) => {
+                try {
+                    const data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
+                    if (!data.profile) {
+                        throw new Error('Invalid backup file: missing profile data');
+                    }
+                    // Clear existing data
+                    const keysToRemove = [];
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        if (key && key.startsWith('steady_')) {
+                            keysToRemove.push(key);
+                        }
+                    }
+                    keysToRemove.forEach(key => localStorage.removeItem(key));
+                    // Restore profile
+                    if (data.profile) {
+                        localStorage.setItem('steady_profile', JSON.stringify(data.profile));
+                    }
+                    // Restore weight history
+                    if (data.weightHistory) {
+                        localStorage.setItem('steady_weight_history', JSON.stringify(data.weightHistory));
+                    }
+                    // Restore recent foods
+                    if (data.recentFoods) {
+                        localStorage.setItem('steady_recent_foods', JSON.stringify(data.recentFoods));
+                    }
+                    // Restore daily logs
+                    if (data.logs) {
+                        Object.entries(data.logs).forEach(([date, log]) => {
+                            localStorage.setItem(`steady_logs_${date}`, JSON.stringify(log));
+                        });
+                    }
+                    return { success: true, message: 'Data imported successfully!' };
+                } catch (error) {
+                    return { success: false, message: error.message || 'Failed to import data' };
+                }
+            }
+        };
+
+        // --- UTILS ---
+        const safeInt = (val) => {
+            if (val === undefined || val === null || val === '') return 0;
+            const num = parseInt(val, 10);
+            return isNaN(num) ? 0 : num;
+        };
+
+        const getTodayStr = () => {
+            const now = new Date();
+            const offset = now.getTimezoneOffset() * 60000;
+            return new Date(now.getTime() - offset).toISOString().split('T')[0];
+        };
+
+        const formatDateDisplay = (dateStr) => {
+            const dateParts = dateStr.split('-');
+            const date = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]); 
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const yesterday = new Date(today);
+            yesterday.setDate(today.getDate() - 1);
+            if (date.getTime() === today.getTime()) return 'Today';
+            if (date.getTime() === yesterday.getTime()) return 'Yesterday';
+            return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        };
+
+        const daysSince = (dateStr) => {
+            if (!dateStr) return 999;
+            const d = new Date(dateStr);
+            const now = new Date();
+            const diffTime = Math.abs(now - d);
+            return Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+        };
+
+        const calculateBMR = (weightLbs, heightInches, age, sex) => {
+            const w = safeInt(weightLbs);
+            const h = safeInt(heightInches);
+            const a = safeInt(age);
+            if (w === 0 || h === 0 || a === 0) return 0;
+            const weightKg = w * 0.453592;
+            const heightCm = h * 2.54;
+            let bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * a);
+            if (sex === 'male') bmr += 5; else bmr -= 161;
+            return Math.max(0, Math.round(bmr));
+        };
+
+        const recommendProtein = (weightLbs, heightInches, goalWeightLbs, strengthLevel) => {
+            const w = safeInt(weightLbs);
+            const h = safeInt(heightInches);
+            if (w === 0 || h === 0) return { min: 0, max: 0, target: 0, method: 'Pending', factorRange: '0', bmi: '0' };
+            const weightKg = w / 2.20462;
+            const heightM = h * 0.0254;
+            const bmi = heightM > 0 ? weightKg / (heightM * heightM) : 0;
+            const gWeight = safeInt(goalWeightLbs);
+            let goalDirection = 'maintain';
+            if (gWeight > 0 && gWeight < w) goalDirection = 'loss';
+            else if (gWeight > 0 && gWeight > w) goalDirection = 'gain';
+            let minFactor = 0.8;
+            let maxFactor = 1.0;
+            switch (strengthLevel) {
+                case 'not_yet': minFactor = 0.8; maxFactor = 1.0; break;
+                case 'sometimes': minFactor = 1.2; maxFactor = 1.6; break;
+                case 'regular': if (goalDirection === 'loss') { minFactor = 1.6; maxFactor = 2.0; } else { minFactor = 1.4; maxFactor = 1.8; } break;
+                default: minFactor = 0.8; maxFactor = 1.0;
+            }
+            let calcWeightKg = weightKg;
+            let method = "Total body weight";
+            if (bmi >= 30) {
+                calcWeightKg = 25 * (heightM * heightM);
+                method = "Ref weight (BMI 25)";
+            }
+            const minG = Math.round(calcWeightKg * minFactor);
+            const maxG = Math.round(calcWeightKg * maxFactor);
+            const targetG = Math.round((minG + maxG) / 2);
+            return { min: minG, max: maxG, target: targetG, method: method, factorRange: `${minFactor}-${maxFactor} g/kg`, bmi: bmi.toFixed(1) };
+        };
+
+        // --- MISSING FUNCTION: suggestTargetWeight ---
+        const suggestTargetWeight = (currentWeight, heightFt, heightIn) => {
+            const w = safeInt(currentWeight);
+            const h = (safeInt(heightFt) * 12) + safeInt(heightIn);
+            if (w === 0 || h === 0) return null;
+            
+            const heightM = h * 0.0254;
+            const currentWeightKg = w / 2.20462;
+            const currentBMI = currentWeightKg / (heightM * heightM);
+            
+            // Target BMI of 22 (middle of healthy range)
+            const targetBMI = 22;
+            const targetWeightKg = targetBMI * (heightM * heightM);
+            const targetWeightLbs = Math.round(targetWeightKg * 2.20462);
+            
+            if (currentBMI > 25) {
+                return { val: targetWeightLbs, reason: `Based on a healthy BMI of ${targetBMI}` };
+            } else if (currentBMI < 18.5) {
+                return { val: targetWeightLbs, reason: `To reach a healthy BMI of ${targetBMI}` };
+            } else {
+                // Already healthy, suggest maintaining
+                return { val: w, reason: `Your current weight is in the healthy range` };
+            }
+        };
+
+        const activityMultipliers = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725 };
+
+        // --- FOOD DATA ---
+        const FOOD_LIBRARY = [
+            { name: 'Chicken Breast (4oz)', protein: 35, calories: 185, portion: 'Palm size' },
+            { name: 'Chicken Thigh (4oz)', protein: 28, calories: 240, portion: 'Palm size' },
+            { name: 'Ground Beef 90% (4oz)', protein: 22, calories: 200, portion: 'Palm size' },
+            { name: 'Steak (Sirloin, 4oz)', protein: 26, calories: 250, portion: 'Palm size' },
+            { name: 'Salmon (4oz)', protein: 23, calories: 230, portion: 'Palm size' },
+            { name: 'Tuna (1 can)', protein: 40, calories: 180, portion: 'Standard can' },
+            { name: 'Egg (Large)', protein: 6, calories: 70, portion: '1 egg' },
+            { name: 'Egg Whites (1 cup)', protein: 26, calories: 125, portion: 'Fist size' },
+            { name: 'Greek Yogurt (1 cup)', protein: 20, calories: 130, portion: 'Fist size' },
+            { name: 'Cottage Cheese (1 cup)', protein: 25, calories: 220, portion: 'Fist size' },
+            { name: 'Protein Powder (1 scoop)', protein: 25, calories: 120, portion: '1 scoop' },
+            { name: 'Rice (1 cup cooked)', protein: 4, calories: 200, portion: 'Fist size' },
+            { name: 'Oats (1/2 cup dry)', protein: 5, calories: 150, portion: 'Cupped hand' },
+            { name: 'Pasta (1 cup cooked)', protein: 7, calories: 220, portion: 'Fist size' },
+            { name: 'Potato (Medium)', protein: 4, calories: 160, portion: 'Mouse size' },
+            { name: 'Bread (1 slice)', protein: 3, calories: 80, portion: 'DVD case size' },
+            { name: 'Apple (Medium)', protein: 0, calories: 95, portion: 'Baseball size' },
+            { name: 'Banana (Medium)', protein: 1, calories: 105, portion: 'Hand length' },
+            { name: 'Almonds (1/4 cup)', protein: 6, calories: 160, portion: 'Small handful' },
+            { name: 'Peanut Butter (1 tbsp)', protein: 4, calories: 95, portion: 'Thumb size' },
+            { name: 'Cheese (1 slice)', protein: 7, calories: 110, portion: '1 slice' },
+        ];
+
+        // --- COMPONENTS ---
+
+        const WeightUpdateModal = ({ isOpen, onClose, currentWeight, onUpdate }) => {
+            const [weight, setWeight] = useState(currentWeight || '');
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60] animate-fade-in">
+                    <div className="bg-white dark:bg-stone-900 w-full max-w-sm rounded-3xl shadow-2xl p-6 border border-stone-100 dark:border-stone-800 text-center animate-zoom-in">
+                        <div className="w-12 h-12 bg-stone-100 dark:bg-stone-800 rounded-full flex items-center justify-center mx-auto mb-4 text-stone-600 dark:text-stone-300">
+                            <Scale size={24} />
+                        </div>
+                        <h3 className="text-lg font-bold text-stone-800 dark:text-stone-100 mb-2">Check-in Time</h3>
+                        <p className="text-sm text-stone-500 dark:text-stone-400 mb-6">Updating your weight keeps your calorie targets accurate.</p>
+                        <div className="mb-6 relative">
+                            <input 
+                                type="number" 
+                                inputMode="numeric" 
+                                pattern="[0-9]*" 
+                                value={weight} 
+                                onChange={(e) => setWeight(e.target.value)} 
+                                className="w-full p-4 text-center text-2xl font-bold bg-stone-50 dark:bg-stone-800 rounded-2xl border-0 focus:ring-2 focus:ring-emerald-500 text-stone-800 dark:text-stone-100 outline-none" 
+                                autoFocus 
+                            />
+                            <span className="absolute right-8 top-5 text-stone-400 text-sm font-medium">lbs</span>
+                        </div>
+                        <div className="flex gap-3">
+                            <button onClick={onClose} className="flex-1 py-3 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 font-medium active:scale-95 transition-transform">Skip</button>
+                            <button onClick={() => { onUpdate(weight); onClose(); }} className="flex-1 py-3 bg-stone-800 dark:bg-stone-700 text-stone-50 font-bold rounded-xl hover:bg-stone-700 transition-colors active:scale-95">Update</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const WeightGraph = ({ data }) => {
+            if (!data || data.length < 2) {
+                return (
+                    <div className="h-40 flex items-center justify-center text-xs text-stone-400 bg-stone-50 dark:bg-stone-800/50 rounded-2xl border border-stone-100 dark:border-stone-800 border-dashed mt-6">
+                        Log weight regularly to see trends
+                    </div>
+                );
+            }
+            const sorted = [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
+            const weights = sorted.map(d => d.weight);
+            const minW = Math.min(...weights) - 5;
+            const maxW = Math.max(...weights) + 5;
+            const points = sorted.map((d, i) => {
+                const x = (i / (sorted.length - 1)) * 100;
+                const y = 40 - ((d.weight - minW) / (maxW - minW)) * 40;
+                return `${x},${y}`;
+            }).join(' ');
+
+            return (
+                <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm mt-6">
+                    <div className="flex justify-between items-end mb-4">
+                        <h4 className="font-bold text-stone-700 dark:text-stone-200">Weight Trend</h4>
+                        <span className="text-xs text-stone-400 bg-stone-50 dark:bg-stone-800 px-2 py-1 rounded-lg">Last 30 Days</span>
+                    </div>
+                    <div className="relative h-32 w-full">
+                        <svg viewBox="0 0 100 40" className="w-full h-full overflow-visible" preserveAspectRatio="none">
+                            <line x1="0" y1="0" x2="100" y2="0" stroke="currentColor" className="text-stone-100 dark:text-stone-800" strokeWidth="0.5" />
+                            <line x1="0" y1="20" x2="100" y2="20" stroke="currentColor" className="text-stone-100 dark:text-stone-800" strokeWidth="0.5" />
+                            <line x1="0" y1="40" x2="100" y2="40" stroke="currentColor" className="text-stone-100 dark:text-stone-800" strokeWidth="0.5" />
+                            <polyline fill="none" stroke="currentColor" strokeWidth="2" points={points} className="text-stone-800 dark:text-stone-200" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
+                            {sorted.map((d, i) => {
+                                const x = (i / (sorted.length - 1)) * 100;
+                                const y = 40 - ((d.weight - minW) / (maxW - minW)) * 40;
+                                return <circle cx={x} cy={y} r="1.5" className="fill-stone-800 dark:fill-stone-200 stroke-white dark:stroke-stone-900" strokeWidth="0.5" key={i} />;
+                            })}
+                        </svg>
+                    </div>
+                </div>
+            );
+        };
+
+        const SupportView = ({ onBack }) => {
+            return (
+                <div className="p-6 space-y-6 animate-fade-in">
+                    <div className="flex items-center gap-3 mb-6">
+                        <button onClick={onBack} className="p-2 -ml-2 text-stone-400 hover:text-stone-800 dark:hover:text-stone-100 transition-colors active:scale-95">
+                            <ChevronLeft size={24} />
+                        </button>
+                        <h2 className="text-xl font-bold text-stone-800 dark:text-stone-100">Support Steady</h2>
+                    </div>
+                    <div className="bg-white dark:bg-stone-900 p-8 rounded-3xl shadow-sm border border-stone-100 dark:border-stone-800 text-center">
+                        <div className="w-20 h-20 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <Heart size={40} fill="currentColor" />
+                        </div>
+                        <h3 className="text-2xl font-bold text-stone-800 dark:text-stone-100 mb-4">Independent & Free</h3>
+                        <div className="space-y-4 text-stone-600 dark:text-stone-400 leading-relaxed mb-8">
+                            <p>Steady was built on a simple belief: <strong>Nutrition shouldn't be stressful.</strong></p>
+                            <p>We don't sell your data. We don't flood you with ads.</p>
+                        </div>
+                        <div className="bg-stone-50 dark:bg-stone-800 p-6 rounded-2xl mb-8">
+                            <p className="text-stone-800 dark:text-stone-200 font-medium mb-2">If Steady has helped you...</p>
+                            <p className="text-xs text-stone-500 dark:text-stone-400">Consider buying us a coffee. It helps cover database costs and keeps the app free for everyone.</p>
+                        </div>
+                        <button onClick={() => alert("This would link to your Stripe/BuyMeACoffee page!")} className="w-full py-4 bg-[#FFDD00] text-stone-900 font-bold rounded-2xl shadow-lg shadow-yellow-100 dark:shadow-none hover:bg-[#FACC15] transition-transform active:scale-95 flex items-center justify-center gap-2">
+                            <Coffee size={20} /> Buy us a Coffee
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        const SettingsView = ({ profile, onUpdate, onLogout, toggleTheme, isDark, onNavigate, onImport }) => {
+            const [formData, setFormData] = useState({ 
+                currentWeight: profile.currentWeight || '', 
+                goalWeight: profile.goalWeight || '', 
+                activity: profile.activity || 'sedentary', 
+                strengthTrainingLevel: profile.strengthTrainingLevel || 'not_yet' 
+            });
+            const [isSaving, setIsSaving] = useState(false);
+            const [isProfileOpen, setIsProfileOpen] = useState(false);
+            const [importStatus, setImportStatus] = useState(null);
+            const fileInputRef = useRef(null);
+
+            const handleSave = async () => {
+                setIsSaving(true);
+                const curWeight = safeInt(formData.currentWeight);
+                const heightTotalInches = (safeInt(profile.heightFt) * 12) + safeInt(profile.heightIn);
+                const bmr = calculateBMR(curWeight, heightTotalInches, profile.age, profile.sex);
+                const activityMult = activityMultipliers[formData.activity] || 1.2;
+                let goalMod = 1.0;
+                const gWeight = safeInt(formData.goalWeight);
+                if (gWeight > 0) { 
+                    if (gWeight < curWeight) goalMod = 0.85; 
+                    else if (gWeight > curWeight) goalMod = 1.10; 
+                }
+                const tdee = Math.round(bmr * activityMult * goalMod);
+                const proteinRec = recommendProtein(curWeight, heightTotalInches, gWeight, formData.strengthTrainingLevel);
+                const water = Math.round(curWeight / 2);
+                await onUpdate({ ...profile, ...formData, targets: { calories: tdee, protein: proteinRec.target, water: water } });
+                setIsSaving(false); 
+            };
+
+            const handleExport = () => {
+                DB.downloadExport();
+            };
+
+            const handleFileSelect = (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const result = DB.importData(event.target.result);
+                    setImportStatus(result);
+                    if (result.success) {
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1500);
+                    } else {
+                        setTimeout(() => setImportStatus(null), 3000);
+                    }
+                };
+                reader.readAsText(file);
+                e.target.value = '';
+            };
+
+            return (
+                <div className="p-4 space-y-6 animate-fade-in">
+                    {importStatus && (
+                        <div className={`p-4 rounded-2xl text-center font-medium ${importStatus.success ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300'}`}>
+                            {importStatus.message}
+                            {importStatus.success && <span className="block text-xs mt-1">Reloading...</span>}
+                        </div>
+                    )}
+                    
+                    <button onClick={() => onNavigate('support')} className="w-full bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-3xl border border-emerald-100 dark:border-emerald-800 flex items-center justify-between group active:scale-[0.98] transition-transform">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-white dark:bg-stone-800 rounded-full text-emerald-600 dark:text-emerald-400 shadow-sm">
+                                <Heart size={20} fill="currentColor" className="opacity-80" />
+                            </div>
+                            <div className="text-left">
+                                <h3 className="font-bold text-stone-800 dark:text-stone-100 text-sm">Support Steady</h3>
+                                <p className="text-xs text-stone-500 dark:text-stone-400">Help keep us free & independent</p>
+                            </div>
+                        </div>
+                        <ChevronRight size={20} className="text-stone-400 group-hover:text-stone-600 transition-colors" />
+                    </button>
+                    
+                    <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl shadow-sm border border-stone-100 dark:border-stone-800 flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-stone-100 dark:bg-stone-800 rounded-full text-stone-600 dark:text-stone-400">
+                                {isDark ? <Moon size={20}/> : <Sun size={20}/>}
+                            </div>
+                            <span className="font-bold text-stone-800 dark:text-stone-200">Dark Mode</span>
+                        </div>
+                        <button onClick={toggleTheme} className={`w-12 h-6 rounded-full p-1 transition-colors ${isDark ? 'bg-emerald-600' : 'bg-stone-300'}`}>
+                            <div className={`w-4 h-4 rounded-full bg-white transition-transform ${isDark ? 'translate-x-6' : ''}`} />
+                        </button>
+                    </div>
+
+                    {/* Import/Export Section */}
+                    <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl shadow-sm border border-stone-100 dark:border-stone-800">
+                        <h3 className="font-bold text-stone-800 dark:text-stone-100 mb-4">Your Data</h3>
+                        <p className="text-xs text-stone-500 dark:text-stone-400 mb-4">Export your data for backup or import from a previous backup.</p>
+                        <div className="flex gap-3">
+                            <button onClick={handleExport} className="flex-1 py-3 bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 font-bold rounded-xl hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors active:scale-95 flex items-center justify-center gap-2">
+                                <Download size={18} /> Export
+                            </button>
+                            <button onClick={() => fileInputRef.current?.click()} className="flex-1 py-3 bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 font-bold rounded-xl hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors active:scale-95 flex items-center justify-center gap-2">
+                                <Upload size={18} /> Import
+                            </button>
+                            <input 
+                                ref={fileInputRef}
+                                type="file" 
+                                accept=".json,application/json" 
+                                onChange={handleFileSelect}
+                                className="hidden" 
+                            />
+                        </div>
+                    </div>
+                    
+                    <div className="bg-white dark:bg-stone-900 rounded-3xl shadow-sm border border-stone-100 dark:border-stone-800 overflow-hidden">
+                        <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="w-full p-6 flex justify-between items-center text-left">
+                            <div>
+                                <h2 className="text-lg font-bold text-stone-800 dark:text-stone-100">Personal Details</h2>
+                                <p className="text-xs text-stone-500 dark:text-stone-400">Recalibrate your targets</p>
+                            </div>
+                            {isProfileOpen ? <ChevronUp size={20} className="text-stone-400"/> : <ChevronDown size={20} className="text-stone-400"/>}
+                        </button>
+                        {isProfileOpen && (
+                            <div className="p-6 pt-0 space-y-4 border-t border-stone-50 dark:border-stone-800 mt-2 animate-fade-in">
+                                <div>
+                                    <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1">Current Weight</label>
+                                    <input type="number" inputMode="numeric" value={formData.currentWeight} onChange={e => setFormData({...formData, currentWeight: e.target.value})} className="w-full p-4 bg-stone-50 dark:bg-stone-800 rounded-2xl border-0 focus:ring-2 focus:ring-emerald-500 text-stone-800 dark:text-stone-100 outline-none" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1">Goal Weight</label>
+                                    <input type="number" inputMode="numeric" value={formData.goalWeight} onChange={e => setFormData({...formData, goalWeight: e.target.value})} className="w-full p-4 bg-stone-50 dark:bg-stone-800 rounded-2xl border-0 focus:ring-2 focus:ring-emerald-500 text-stone-800 dark:text-stone-100 outline-none" />
+                                </div>
+                                <button onClick={handleSave} disabled={isSaving} className="w-full mt-4 bg-stone-800 dark:bg-stone-700 text-stone-50 py-4 rounded-2xl font-bold hover:bg-stone-700 transition-colors active:scale-95 disabled:opacity-50">
+                                    {isSaving ? 'Recalculating...' : 'Update & Recalculate'}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div className="text-center">
+                        <button onClick={onLogout} className="text-stone-400 dark:text-stone-600 text-sm hover:text-red-500 flex items-center justify-center gap-2 mx-auto transition-colors">
+                            <LogOut size={14} /> Reset App Data
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        const Onboarding = ({ onComplete }) => {
+            const [step, setStep] = useState(0);
+            const [formData, setFormData] = useState({ 
+                currentWeight: '', 
+                goalWeight: '', 
+                age: '', 
+                heightFt: '', 
+                heightIn: '', 
+                sex: 'female', 
+                activity: 'sedentary', 
+                strengthTrainingLevel: 'not_yet', 
+                manualCalories: '', 
+                manualProtein: '', 
+                manualWater: '' 
+            });
+            const [calculated, setCalculated] = useState({ calories: 0, proteinTarget: 0, water: 0 });
+            const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+
+            useEffect(() => {
+                const curWeight = safeInt(formData.currentWeight);
+                const heightTotalInches = (safeInt(formData.heightFt) * 12) + safeInt(formData.heightIn);
+                const age = safeInt(formData.age);
+                if (curWeight > 0 && heightTotalInches > 0 && age > 0) {
+                    const bmr = calculateBMR(curWeight, heightTotalInches, age, formData.sex);
+                    const activityMult = activityMultipliers[formData.activity] || 1.2;
+                    let goalMod = 1.0;
+                    const gWeight = safeInt(formData.goalWeight);
+                    if (gWeight > 0) { 
+                        if (gWeight < curWeight) goalMod = 0.85; 
+                        else if (gWeight > curWeight) goalMod = 1.10; 
+                    }
+                    const tdee = Math.round(bmr * activityMult * goalMod);
+                    const proteinRec = recommendProtein(curWeight, heightTotalInches, gWeight, formData.strengthTrainingLevel);
+                    const water = Math.round(curWeight / 2);
+                    setCalculated({ 
+                        calories: tdee, 
+                        proteinTarget: proteinRec.target, 
+                        proteinMin: proteinRec.min, 
+                        proteinMax: proteinRec.max, 
+                        water, 
+                        proteinMethod: proteinRec.method 
+                    });
+                }
+            }, [formData]);
+
+            const suggestion = step === 1 ? suggestTargetWeight(safeInt(formData.currentWeight), formData.heightFt, formData.heightIn) : null;
+
+            if (step === 0) return (
+                <div className="w-full h-full flex flex-col items-center justify-center p-8 bg-white dark:bg-stone-900 text-center animate-fade-in">
+                    <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Leaf size={32} />
+                    </div>
+                    <div className="mb-8">
+                        <span className="text-xs font-bold text-stone-500 dark:text-stone-400 uppercase tracking-widest">Welcome to</span>
+                        <h1 className="text-3xl font-extrabold text-stone-800 dark:text-stone-100 mt-1">Steady</h1>
+                    </div>
+                    <div className="w-full text-left space-y-4 text-stone-600 dark:text-stone-400 text-sm mb-8 bg-stone-50 dark:bg-stone-800 p-6 rounded-2xl border border-stone-100 dark:border-stone-700">
+                        <div className="flex gap-3">
+                            <div className="mt-1 bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-400 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0">1</div>
+                            <p><strong>Evidence-based.</strong> We use scientific formulas and safety guardrails.</p>
+                        </div>
+                        <div className="flex gap-3">
+                            <div className="mt-1 bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-400 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0">2</div>
+                            <p><strong>Simple inputs.</strong> No food database. You log what you know.</p>
+                        </div>
+                        <div className="flex gap-3">
+                            <div className="mt-1 bg-stone-200 dark:bg-stone-700 text-stone-500 dark:text-stone-300 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0">3</div>
+                            <p><strong>You stay in control.</strong> These are starting points, not a contract.</p>
+                        </div>
+                    </div>
+                    <button onClick={() => setStep(1)} className="w-full py-4 bg-stone-800 dark:bg-stone-700 text-stone-50 rounded-2xl font-bold hover:bg-stone-700 transition-colors shadow-lg active:scale-95 flex items-center justify-center gap-2">
+                        Build My Plan <ArrowRight size={18} />
+                    </button>
+                </div>
+            );
+
+            if (step === 1) return (
+                <div className="w-full h-full p-6 flex flex-col justify-center animate-slide-right overflow-y-auto">
+                    <h2 className="text-xl font-bold text-stone-800 dark:text-stone-100 mb-6 text-center">The Basics</h2>
+                    <div className="space-y-6 mb-8 w-full">
+                        <div>
+                            <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1">Current Weight</label>
+                            <input type="number" inputMode="numeric" value={formData.currentWeight} onChange={e => setFormData({...formData, currentWeight: e.target.value})} className="w-full p-4 text-lg bg-stone-50 dark:bg-stone-800 rounded-2xl border-0 focus:ring-2 focus:ring-emerald-500 text-stone-800 dark:text-stone-100 outline-none" placeholder="lbs" autoFocus />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1">Target Weight</label>
+                            <input type="number" inputMode="numeric" value={formData.goalWeight} onChange={e => setFormData({...formData, goalWeight: e.target.value})} className="w-full p-4 text-lg bg-stone-50 dark:bg-stone-800 rounded-2xl border-0 focus:ring-2 focus:ring-emerald-500 text-stone-800 dark:text-stone-100 outline-none" placeholder="lbs" />
+                            {suggestion && !formData.goalWeight && (
+                                <div className="mt-2 p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl flex gap-2 items-start">
+                                    <Lightbulb size={16} className="text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+                                    <div className="flex-1">
+                                        <p className="text-xs font-bold text-indigo-700 dark:text-indigo-300">Suggestion: {suggestion.val} lbs</p>
+                                        <p className="text-[10px] text-indigo-600 dark:text-indigo-400">{suggestion.reason}</p>
+                                    </div>
+                                    <button onClick={() => setFormData({...formData, goalWeight: suggestion.val})} className="text-xs bg-indigo-100 dark:bg-indigo-800 text-indigo-700 dark:text-indigo-200 px-3 py-1.5 rounded-lg font-bold active:scale-95 transition-transform">Apply</button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <div className="border-t border-stone-100 dark:border-stone-800 pt-6 w-full">
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 mb-1">Height</label>
+                                <div className="flex gap-2">
+                                    <input type="number" inputMode="numeric" value={formData.heightFt} onChange={e => setFormData({...formData, heightFt: e.target.value})} className="w-full p-3 bg-stone-50 dark:bg-stone-800 rounded-xl text-stone-800 dark:text-stone-100 outline-none" placeholder="ft" />
+                                    <input type="number" inputMode="numeric" value={formData.heightIn} onChange={e => setFormData({...formData, heightIn: e.target.value})} className="w-full p-3 bg-stone-50 dark:bg-stone-800 rounded-xl text-stone-800 dark:text-stone-100 outline-none" placeholder="in" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-stone-500 dark:text-stone-400 mb-1">Age & Sex</label>
+                                <div className="flex gap-2">
+                                    <input type="number" inputMode="numeric" value={formData.age} onChange={e => setFormData({...formData, age: e.target.value})} className="w-20 p-3 bg-stone-50 dark:bg-stone-800 rounded-xl text-stone-800 dark:text-stone-100 outline-none" placeholder="Age" />
+                                    <select value={formData.sex} onChange={e => setFormData({...formData, sex: e.target.value})} className="w-full p-3 bg-stone-50 dark:bg-stone-800 rounded-xl text-sm text-stone-800 dark:text-stone-100 outline-none">
+                                        <option value="female">F</option>
+                                        <option value="male">M</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={() => { if(safeInt(formData.currentWeight) > 0 && safeInt(formData.heightFt) > 0 && safeInt(formData.age) > 0) setStep(2); }} 
+                        disabled={safeInt(formData.currentWeight) <= 0 || safeInt(formData.heightFt) <= 0 || safeInt(formData.age) <= 0} 
+                        className="w-full mt-4 bg-stone-800 dark:bg-stone-700 text-stone-50 py-4 rounded-2xl font-bold disabled:opacity-50 hover:bg-stone-700 transition-colors active:scale-95"
+                    >
+                        Next: Training
+                    </button>
+                </div>
+            );
+
+            if (step === 2) return (
+                <div className="w-full h-full p-6 flex flex-col justify-center animate-slide-right overflow-y-auto">
+                    <h2 className="text-xl font-bold text-stone-800 dark:text-stone-100 mb-2 text-center">Training</h2>
+                    <div className="space-y-4 mb-8 w-full">
+                        {['not_yet', 'sometimes', 'regular'].map(level => (
+                            <label key={level} className="block p-4 rounded-2xl border-2 cursor-pointer transition-all border-stone-100 dark:border-stone-800 hover:border-emerald-100 dark:hover:border-emerald-900 has-[:checked]:border-emerald-700 dark:has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 dark:has-[:checked]:bg-emerald-900/20 active:scale-[0.98]">
+                                <div className="flex items-center gap-3">
+                                    <input type="radio" name="strengthTrainingLevel" value={level} checked={formData.strengthTrainingLevel === level} onChange={e => setFormData({...formData, strengthTrainingLevel: e.target.value})} className="w-5 h-5 text-emerald-700 border-stone-300 focus:ring-emerald-500" />
+                                    <div>
+                                        <span className="block font-bold text-stone-800 dark:text-stone-100">{level === 'not_yet' ? 'Not yet' : level === 'sometimes' ? 'Sometimes' : 'Yes (2+ days/week)'}</span>
+                                        <span className="text-xs text-stone-500 dark:text-stone-400">{level === 'not_yet' ? "I'm starting simple." : level === 'sometimes' ? 'A few times a month.' : 'This is part of my routine.'}</span>
+                                    </div>
+                                </div>
+                            </label>
+                        ))}
+                    </div>
+                    <button onClick={() => setStep(3)} className="w-full bg-stone-800 dark:bg-stone-700 text-stone-50 py-4 rounded-2xl font-bold hover:bg-stone-700 transition-colors active:scale-95">
+                        Calculate Plan
+                    </button>
+                </div>
+            );
+
+            if (step === 3) return (
+                <div className="w-full h-full p-6 flex flex-col justify-center animate-slide-right overflow-y-auto">
+                    <h2 className="text-xl font-bold text-stone-800 dark:text-stone-100 mb-2 text-center">Your Blueprint</h2>
+                    <p className="text-stone-500 text-center text-sm mb-6">Scientific estimates based on your profile.</p>
+                    <div className="space-y-4 mb-8 w-full">
+                        <div className="bg-emerald-50 dark:bg-emerald-900/20 p-5 rounded-2xl border border-emerald-100 dark:border-emerald-800">
+                            <div className="flex justify-between items-start mb-2">
+                                <div className="flex items-center gap-2">
+                                    <Utensils size={18} className="text-emerald-800 dark:text-emerald-400" />
+                                    <span className="font-bold text-emerald-900 dark:text-emerald-300">Protein</span>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-2xl font-bold text-emerald-900 dark:text-emerald-300">{calculated.proteinTarget}g</div>
+                                    <div className="text-xs font-medium text-emerald-700 dark:text-emerald-500">Range: {calculated.proteinMin}-{calculated.proteinMax}g</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-orange-50 dark:bg-orange-900/20 p-5 rounded-2xl border border-orange-100 dark:border-orange-800">
+                            <div className="flex justify-between items-start mb-2">
+                                <div className="flex items-center gap-2">
+                                    <Flame size={18} className="text-orange-700 dark:text-orange-400" />
+                                    <span className="font-bold text-orange-900 dark:text-orange-300">Calories</span>
+                                </div>
+                                <div className="text-2xl font-bold text-orange-900 dark:text-orange-300">{calculated.calories}</div>
+                            </div>
+                        </div>
+                        <div className="bg-cyan-50 dark:bg-cyan-900/20 p-5 rounded-2xl border border-cyan-100 dark:border-cyan-800">
+                            <div className="flex justify-between items-start mb-2">
+                                <div className="flex items-center gap-2">
+                                    <Droplet size={18} className="text-cyan-700 dark:text-cyan-400" />
+                                    <span className="font-bold text-cyan-900 dark:text-cyan-300">Water</span>
+                                </div>
+                                <div className="text-2xl font-bold text-cyan-900 dark:text-cyan-300">{calculated.water}oz</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div className="mb-6 w-full">
+                        <button onClick={() => setIsAdvancedOpen(!isAdvancedOpen)} className="w-full flex items-center justify-center gap-2 text-xs text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors mb-4">
+                            {isAdvancedOpen ? 'Hide' : 'Show'} Advanced Overrides {isAdvancedOpen ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+                        </button>
+                        {isAdvancedOpen && (
+                            <div className="grid grid-cols-3 gap-2 animate-fade-in">
+                                <input type="number" inputMode="numeric" placeholder={`Pro: ${calculated.proteinTarget}`} onChange={e => setFormData({...formData, manualProtein: e.target.value})} className="p-2 bg-stone-50 dark:bg-stone-800 text-sm rounded-xl text-center border-0 ring-1 ring-stone-100 dark:ring-stone-700 focus:ring-emerald-500 text-stone-800 dark:text-stone-100 outline-none" />
+                                <input type="number" inputMode="numeric" placeholder={`Cal: ${calculated.calories}`} onChange={e => setFormData({...formData, manualCalories: e.target.value})} className="p-2 bg-stone-50 dark:bg-stone-800 text-sm rounded-xl text-center border-0 ring-1 ring-stone-100 dark:ring-stone-700 focus:ring-emerald-500 text-stone-800 dark:text-stone-100 outline-none" />
+                                <input type="number" inputMode="numeric" placeholder={`H2O: ${calculated.water}`} onChange={e => setFormData({...formData, manualWater: e.target.value})} className="p-2 bg-stone-50 dark:bg-stone-800 text-sm rounded-xl text-center border-0 ring-1 ring-stone-100 dark:ring-stone-700 focus:ring-emerald-500 text-stone-800 dark:text-stone-100 outline-none" />
+                            </div>
+                        )}
+                    </div>
+                    
+                    <button 
+                        onClick={() => onComplete({ 
+                            ...formData, 
+                            targets: { 
+                                calories: safeInt(formData.manualCalories) || calculated.calories, 
+                                protein: safeInt(formData.manualProtein) || calculated.proteinTarget, 
+                                water: safeInt(formData.manualWater) || calculated.water 
+                            } 
+                        })} 
+                        className="w-full bg-stone-800 dark:bg-stone-700 text-stone-50 py-4 rounded-2xl font-bold shadow-lg shadow-stone-200 dark:shadow-none hover:bg-stone-700 transition-colors active:scale-95"
+                    >
+                        Accept & Start Tracking
+                    </button>
+                </div>
+            );
+        };
+
+        const ProgressBar = ({ current, target, colorClass, icon: Icon, label, unit }) => {
+            const t = safeInt(target) || 1;
+            const c = safeInt(current);
+            const percentage = Math.min(100, Math.max(0, (c / t) * 100));
+            const isComplete = percentage >= 100;
+            return (
+                <div className={`bg-white dark:bg-stone-900 p-5 rounded-3xl border transition-all duration-500 relative overflow-hidden ${isComplete ? 'border-emerald-200 dark:border-emerald-800 shadow-md animate-pop' : 'border-stone-100 dark:border-stone-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)]'}`}>
+                    <div className="flex justify-between items-end mb-2 relative z-10">
+                        <div className="flex items-center gap-2">
+                            <div className={`p-2 rounded-full ${colorClass.bg} ${colorClass.text} dark:bg-opacity-20`}>
+                                {isComplete ? <Check size={18} /> : <Icon size={18} />}
+                            </div>
+                            <span className="font-medium text-stone-600 dark:text-stone-300">{label}</span>
+                        </div>
+                        <div className="text-right">
+                            <span className="text-xl font-bold text-stone-800 dark:text-stone-100">{c}</span>
+                            <span className="text-sm text-stone-400"> / {t}{unit}</span>
+                        </div>
+                    </div>
+                    <div className="h-3 bg-stone-100 dark:bg-stone-800 rounded-full w-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all duration-1000 ease-out ${colorClass.fill} ${isComplete ? 'brightness-110' : ''}`} style={{ width: `${percentage}%` }}/>
+                    </div>
+                    <div className="mt-2 text-xs text-stone-400 text-right font-medium">
+                        {isComplete ? <span className="text-emerald-600 dark:text-emerald-400 font-bold animate-pulse">Goal Reached!</span> : `${Math.round(100 - percentage)}% to go`}
+                    </div>
+                </div>
+            );
+        };
+
+        const AddFoodModal = ({ isOpen, onClose, onAdd, recentFoods, onSaveCustom }) => {
+            const [mode, setMode] = useState('search');
+            const [food, setFood] = useState({ name: '', protein: '', calories: '', note: '', portionTip: '' });
+            const [customFood, setCustomFood] = useState({ name: '', protein: '', calories: '', portion: 'Custom' });
+            const [suggestions, setSuggestions] = useState([]);
+
+            useEffect(() => {
+                if (!food.name || food.name.length < 2) { setSuggestions([]); return; }
+                const allFoods = [...(recentFoods || []), ...FOOD_LIBRARY];
+                const uniqueFoods = Array.from(new Map(allFoods.map(item => [item.name, item])).values());
+                const matches = uniqueFoods.filter(item => item.name.toLowerCase().includes(food.name.toLowerCase()));
+                setSuggestions(matches.slice(0, 5));
+            }, [food.name, recentFoods]);
+
+            if (!isOpen) return null;
+
+            const handleSelectFood = (item) => {
+                setFood(prev => ({ ...prev, name: item.name, protein: item.protein, calories: item.calories, portionTip: item.portion }));
+                setSuggestions([]);
+            };
+
+            const handleSaveCustom = async () => {
+                if (!customFood.name || !customFood.protein || !customFood.calories) return;
+                await onSaveCustom(customFood);
+                setMode('search');
+                setFood({ name: customFood.name, protein: customFood.protein, calories: customFood.calories, note: '', portionTip: 'Custom' });
+                setCustomFood({ name: '', protein: '', calories: '', portion: 'Custom' });
+            };
+
+            return (
+                <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+                    <div className="bg-white dark:bg-stone-900 w-full max-w-sm rounded-3xl shadow-2xl p-6 animate-zoom-in overflow-y-auto max-h-[90vh] border border-stone-200 dark:border-stone-800">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold text-stone-800 dark:text-stone-100">Log Food</h3>
+                            <button onClick={onClose} className="text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 p-1">
+                                <X size={20}/>
+                            </button>
+                        </div>
+                        <div className="flex bg-stone-100 dark:bg-stone-800 p-1 rounded-xl mb-4">
+                            <button onClick={() => setMode('search')} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${mode === 'search' ? 'bg-white dark:bg-stone-700 shadow-sm text-stone-800 dark:text-stone-100' : 'text-stone-400'}`}>Search</button>
+                            <button onClick={() => setMode('create')} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${mode === 'create' ? 'bg-white dark:bg-stone-700 shadow-sm text-stone-800 dark:text-stone-100' : 'text-stone-400'}`}>Create Food</button>
+                        </div>
+                        {mode === 'search' ? (
+                            <>
+                                <div className="space-y-4 relative">
+                                    <div className="relative">
+                                        <input placeholder="What did you eat?" className="w-full p-4 pl-10 bg-stone-50 dark:bg-stone-800 rounded-2xl border-0 focus:ring-2 focus:ring-emerald-500 text-stone-800 dark:text-stone-100 placeholder-stone-400 outline-none" value={food.name} onChange={e => setFood({...food, name: e.target.value})} autoFocus />
+                                        <Search size={18} className="absolute left-3 top-4 text-stone-400" />
+                                    </div>
+                                    {suggestions.length > 0 && (
+                                        <div className="absolute top-14 left-0 right-0 bg-white dark:bg-stone-800 border border-stone-100 dark:border-stone-700 shadow-xl rounded-2xl z-50 max-h-48 overflow-y-auto">
+                                            {suggestions.map((item, idx) => (
+                                                <button key={idx} onClick={() => handleSelectFood(item)} className="w-full p-3 text-left hover:bg-stone-50 dark:hover:bg-stone-700 border-b border-stone-50 dark:border-stone-700 last:border-0 flex justify-between items-center text-stone-700 dark:text-stone-200 active:bg-stone-100">
+                                                    <span className="font-medium text-sm">{item.name}</span>
+                                                    <span className="text-xs text-stone-400">{item.calories} cal</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    <div className="flex gap-3">
+                                        <div className="flex-1">
+                                            <label className="text-xs text-stone-400 ml-1">Protein (g)</label>
+                                            <input type="number" inputMode="numeric" pattern="[0-9]*" placeholder="0" className="w-full p-4 bg-stone-50 dark:bg-stone-800 rounded-2xl border-0 focus:ring-2 focus:ring-emerald-500 font-bold text-stone-700 dark:text-stone-200 outline-none" value={food.protein} onChange={e => setFood({...food, protein: e.target.value})} />
+                                        </div>
+                                        <div className="flex-1">
+                                            <label className="text-xs text-stone-400 ml-1">Calories</label>
+                                            <input type="number" inputMode="numeric" pattern="[0-9]*" placeholder="0" className="w-full p-4 bg-stone-50 dark:bg-stone-800 rounded-2xl border-0 focus:ring-2 focus:ring-emerald-500 font-bold text-stone-700 dark:text-stone-200 outline-none" value={food.calories} onChange={e => setFood({...food, calories: e.target.value})} />
+                                        </div>
+                                    </div>
+                                    {food.portionTip && (
+                                        <div className="bg-emerald-50 dark:bg-emerald-900/30 p-3 rounded-xl flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300">
+                                            <Hand size={14} className="shrink-0" />
+                                            <span><strong>Portion:</strong> {food.portionTip}</span>
+                                        </div>
+                                    )}
+                                </div>
+                                <button onClick={() => { onAdd({ name: food.name || 'Quick Add', protein: safeInt(food.protein), calories: safeInt(food.calories), note: food.note }); setFood({ name: '', protein: '', calories: '', note: '', portionTip: '' }); onClose(); }} className="w-full mt-6 py-4 bg-stone-800 dark:bg-stone-700 text-stone-50 font-bold rounded-2xl shadow-lg shadow-stone-200 dark:shadow-none hover:bg-stone-700 transition-colors active:scale-95">
+                                    Add Log
+                                </button>
+                            </>
+                        ) : (
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-xs text-stone-400 ml-1">Food Name</label>
+                                    <input placeholder="e.g. Grandma's Lasagna" className="w-full p-4 bg-stone-50 dark:bg-stone-800 rounded-2xl border-0 focus:ring-2 focus:ring-emerald-500 text-stone-800 dark:text-stone-100 outline-none" value={customFood.name} onChange={e => setCustomFood({...customFood, name: e.target.value})} />
+                                </div>
+                                <div className="flex gap-3">
+                                    <div className="flex-1">
+                                        <label className="text-xs text-stone-400 ml-1">Protein (g)</label>
+                                        <input type="number" inputMode="numeric" pattern="[0-9]*" placeholder="0" className="w-full p-4 bg-stone-50 dark:bg-stone-800 rounded-2xl border-0 focus:ring-2 focus:ring-emerald-500 text-stone-800 dark:text-stone-100 outline-none" value={customFood.protein} onChange={e => setCustomFood({...customFood, protein: e.target.value})} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <label className="text-xs text-stone-400 ml-1">Calories</label>
+                                        <input type="number" inputMode="numeric" pattern="[0-9]*" placeholder="0" className="w-full p-4 bg-stone-50 dark:bg-stone-800 rounded-2xl border-0 focus:ring-2 focus:ring-emerald-500 text-stone-800 dark:text-stone-100 outline-none" value={customFood.calories} onChange={e => setCustomFood({...customFood, calories: e.target.value})} />
+                                    </div>
+                                </div>
+                                <button onClick={handleSaveCustom} className="w-full mt-2 py-4 bg-emerald-600 text-white font-bold rounded-2xl shadow-lg hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 active:scale-95">
+                                    <Save size={18}/> Save & Select
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const FoodLogList = ({ items, onDelete }) => {
+            const list = items || [];
+            if (list.length === 0) return null;
+            return (
+                <div className="mt-8 animate-slide-up">
+                    <h3 className="text-lg font-bold text-stone-800 dark:text-stone-100 mb-4 px-2">Today's Journal</h3>
+                    <div className="space-y-3">
+                        {list.map((item, idx) => (
+                            <div key={idx} className="bg-white dark:bg-stone-900 p-4 rounded-2xl border border-stone-100 dark:border-stone-800 shadow-sm flex justify-between items-start group">
+                                <div className="flex-1">
+                                    <div className="font-bold text-stone-700 dark:text-stone-200">{item.name}</div>
+                                    <div className="text-xs text-stone-500 mt-1 flex gap-2 flex-wrap">
+                                        {item.protein > 0 && <span className="bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-lg font-medium">{item.protein}g Pro</span>}
+                                        {item.calories > 0 && <span className="bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 px-2 py-0.5 rounded-lg font-medium">{item.calories} Cal</span>}
+                                    </div>
+                                </div>
+                                <button onClick={() => onDelete(idx)} className="p-2 text-stone-300 hover:text-red-500 rounded-lg transition-colors active:scale-90">
+                                    <X size={16} />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const WeeklyView = ({ userId }) => {
+            const [history, setHistory] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [weightHistory, setWeightHistory] = useState([]);
+
+            useEffect(() => {
+                const getPastDates = () => {
+                    const dates = [];
+                    for (let i = 6; i >= 0; i--) { 
+                        const d = new Date(); 
+                        d.setDate(d.getDate() - i); 
+                        dates.push(d.toISOString().split('T')[0]); 
+                    }
+                    return dates;
+                };
+                const last7 = getPastDates().map(date => {
+                    const dayLog = DB.getLog(date) || { protein: 0, calories: 0, water: 0 };
+                    return { date, ...dayLog };
+                }).reverse();
+                setHistory(last7);
+                setWeightHistory(DB.getWeightHistory());
+                setLoading(false);
+            }, [userId]);
+
+            if (loading) return <div className="p-8 text-center text-stone-400">Loading history...</div>;
+            const avgProtein = Math.round(history.reduce((a, b) => a + (b.protein || 0), 0) / 7);
+            const avgCalories = Math.round(history.reduce((a, b) => a + (b.calories || 0), 0) / 7);
+
+            return (
+                <div className="space-y-6 animate-fade-in">
+                    <div className="bg-emerald-50 dark:bg-emerald-900/20 p-6 rounded-3xl border border-emerald-100 dark:border-emerald-800">
+                        <h3 className="text-emerald-800 dark:text-emerald-300 font-bold mb-2">Consistency {'>'} Compensation</h3>
+                        <p className="text-emerald-700 dark:text-emerald-400 text-sm leading-relaxed">Your average matters more than any single day. You're building momentum, not chasing perfection.</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-white dark:bg-stone-900 p-4 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm text-center">
+                            <div className="text-xs text-stone-400 uppercase tracking-wider mb-1">7-Day Avg Protein</div>
+                            <div className="text-2xl font-bold text-stone-800 dark:text-stone-100">{avgProtein}g</div>
+                        </div>
+                        <div className="bg-white dark:bg-stone-900 p-4 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm text-center">
+                            <div className="text-xs text-stone-400 uppercase tracking-wider mb-1">7-Day Avg Calories</div>
+                            <div className="text-2xl font-bold text-stone-800 dark:text-stone-100">{avgCalories}</div>
+                        </div>
+                    </div>
+                    <div className="bg-white dark:bg-stone-900 p-6 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm">
+                        <h4 className="font-bold text-stone-700 dark:text-stone-200 mb-6">Last 7 Days</h4>
+                        <div className="flex justify-between items-end h-32 gap-2">
+                            {history.map((day, i) => {
+                                const heightPct = Math.min(100, (day.calories / 3000) * 100);
+                                const isToday = day.date === getTodayStr();
+                                return (
+                                    <div key={day.date} className="flex-1 flex flex-col items-center gap-2 group">
+                                        <div className="w-full relative h-full flex items-end bg-stone-50 dark:bg-stone-800 rounded-lg overflow-hidden">
+                                            <div className={`w-full rounded-t-lg transition-all ${isToday ? 'bg-emerald-600 dark:bg-emerald-500' : 'bg-stone-300 dark:bg-stone-700 group-hover:bg-stone-400'}`} style={{ height: `${heightPct}%` }}/>
+                                        </div>
+                                        <span className="text-[10px] text-stone-400 font-medium">{new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'narrow' })}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                    <WeightGraph data={weightHistory} />
+                </div>
+            );
+        };
+
+        const CheatSheet = () => {
+            const foods = FOOD_LIBRARY.filter((item, index, self) => index === self.findIndex((t) => (t.name === item.name)));
+            return (
+                <div className="space-y-4 animate-fade-in">
+                    <div className="bg-cyan-50 dark:bg-cyan-900/20 p-6 rounded-3xl border border-cyan-100 dark:border-cyan-800">
+                        <h3 className="text-cyan-800 dark:text-cyan-300 font-bold mb-2 flex items-center gap-2">
+                            <BookOpen size={18} />Learn this once. Use it forever.
+                        </h3>
+                        <p className="text-cyan-700 dark:text-cyan-400 text-sm leading-relaxed">These are mental anchors. You don't need a database if you know the basics.</p>
+                    </div>
+                    <div className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-sm overflow-hidden">
+                        {foods.map((food, idx) => (
+                            <div key={idx} className="flex justify-between items-center p-4 border-b border-stone-50 dark:border-stone-800 last:border-0 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors">
+                                <div>
+                                    <div className="font-medium text-stone-700 dark:text-stone-200">{food.name}</div>
+                                    <div className="text-[10px] text-stone-400">≈ {food.portion}</div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="font-bold text-emerald-700 dark:text-emerald-400">{food.protein}g</div>
+                                    <div className="text-xs text-stone-400">{food.calories} cal</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        // --- MAIN APP COMPONENT ---
+        const Steady = () => {
+            const [profile, setProfile] = useState(DB.getProfile());
+            const [selectedDate, setSelectedDate] = useState(getTodayStr());
+            const [logs, setLogs] = useState(DB.getLog(selectedDate) || { protein: 0, calories: 0, water: 0, items: [] });
+            const [view, setView] = useState('dashboard');
+            const [showAddModal, setShowAddModal] = useState(false);
+            const [showWeightModal, setShowWeightModal] = useState(false);
+            const [isDark, setIsDark] = useState(false);
+            const [recentFoods, setRecentFoods] = useState(DB.getRecentFoods());
+
+            useEffect(() => {
+                if (window.matchMedia('(prefers-color-scheme: dark)').matches) setIsDark(true);
+                if (profile && profile.lastWeightUpdate) {
+                    const days = daysSince(profile.lastWeightUpdate);
+                    if (days > 14) setShowWeightModal(true);
+                }
+            }, []);
+
+            useEffect(() => { 
+                document.documentElement.classList.toggle('dark', isDark); 
+            }, [isDark]);
+
+            // Sync logs when date changes
+            useEffect(() => {
+                const dayLog = DB.getLog(selectedDate);
+                setLogs(dayLog || { protein: 0, calories: 0, water: 0, items: [] });
+            }, [selectedDate]);
+
+            const updateLog = (newData) => {
+                const merged = { ...logs, ...newData };
+                setLogs(merged);
+                DB.saveLog(selectedDate, merged);
+                // Streak Logic
+                if (selectedDate === getTodayStr() && profile) {
+                    if (profile.lastLogDate !== selectedDate) {
+                        const newProfile = { ...profile, lastLogDate: selectedDate, currentStreak: (profile.currentStreak || 0) + 1 };
+                        setProfile(newProfile);
+                        DB.saveProfile(newProfile);
+                    }
+                }
+            };
+
+            const handleAdd = (food) => {
+                updateLog({ 
+                    protein: (logs.protein || 0) + food.protein, 
+                    calories: (logs.calories || 0) + food.calories, 
+                    items: [...(logs.items || []), food] 
+                });
+                if (food.name && food.name !== 'Quick Add') {
+                    DB.addRecentFood(food);
+                    setRecentFoods(DB.getRecentFoods());
+                }
+            };
+
+            const handleSaveCustom = (customFood) => {
+                DB.addRecentFood(customFood);
+                setRecentFoods(DB.getRecentFoods());
+            };
+
+            const handleDelete = (idx) => {
+                const item = logs.items[idx];
+                const newItems = logs.items.filter((_, i) => i !== idx);
+                updateLog({ 
+                    protein: Math.max(0, logs.protein - item.protein), 
+                    calories: Math.max(0, logs.calories - item.calories), 
+                    items: newItems 
+                });
+            };
+            
+            const handleWater = (amt) => updateLog({ water: Math.max(0, (logs.water || 0) + amt) });
+
+            const handleUpdateWeight = (w) => {
+                const newProfile = { ...profile, currentWeight: safeInt(w), lastWeightUpdate: getTodayStr() };
+                setProfile(newProfile);
+                DB.saveProfile(newProfile);
+                DB.saveWeightLog({ date: getTodayStr(), weight: safeInt(w) });
+            };
+
+            const changeDate = (days) => {
+                const date = new Date(selectedDate);
+                date.setDate(date.getDate() + days);
+                setSelectedDate(date.toISOString().split('T')[0]);
+            };
+
+            // Onboarding screen (no profile yet)
+            if (!profile) {
+                return (
+                    <div className="fixed inset-0 bg-[#FDFBF7] dark:bg-stone-950 flex items-center justify-center">
+                        <div className="w-full h-full max-w-lg mx-auto bg-white dark:bg-stone-900 shadow-2xl overflow-y-auto smooth-scroll">
+                            <Onboarding onComplete={(p) => { setProfile(p); DB.saveProfile(p); }} />
+                        </div>
+                    </div>
+                );
+            }
+
+            const targets = { 
+                calories: safeInt(profile.targets?.calories) || 2000, 
+                protein: safeInt(profile.targets?.protein) || 150, 
+                water: safeInt(profile.targets?.water) || 100 
+            };
+
+            return (
+                <div className="fixed inset-0 flex flex-col bg-[#FDFBF7] dark:bg-stone-950">
+                    {/* App Container - centered with max width for tablets */}
+                    <div className="w-full h-full max-w-lg mx-auto bg-white dark:bg-stone-900 shadow-2xl flex flex-col overflow-hidden">
+                        
+                        {/* Header - Fixed */}
+                        <header className="flex-none bg-white dark:bg-stone-900 px-6 pt-4 pb-4 border-b border-stone-100 dark:border-stone-800 z-10">
+                            <div className="flex justify-between items-center mb-4">
+                                <div className="flex items-center gap-2">
+                                    <h1 className="text-xl font-bold text-stone-800 dark:text-stone-100">Steady</h1>
+                                    {profile.currentStreak > 0 && (
+                                        <div className="flex items-center gap-1 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded-full text-xs font-bold">
+                                            <Flame size={12} fill="currentColor"/> {profile.currentStreak}
+                                        </div>
+                                    )}
+                                </div>
+                                <button onClick={() => setView('settings')} className="text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 p-2 -mr-2 active:scale-90 transition-transform">
+                                    <Settings size={20}/>
+                                </button>
+                            </div>
+                            {view === 'dashboard' && (
+                                <div className="flex items-center justify-between bg-stone-50 dark:bg-stone-800 p-1 rounded-xl">
+                                    <button onClick={() => changeDate(-1)} className="p-2 text-stone-400 hover:bg-white dark:hover:bg-stone-700 rounded-lg active:scale-90 transition-transform">
+                                        <ChevronLeft size={18}/>
+                                    </button>
+                                    <div className="flex items-center gap-2 text-sm font-bold text-stone-600 dark:text-stone-300">
+                                        <Calendar size={14} />{formatDateDisplay(selectedDate)}
+                                    </div>
+                                    <button onClick={() => changeDate(1)} disabled={selectedDate === getTodayStr()} className="p-2 text-stone-400 hover:bg-white dark:hover:bg-stone-700 rounded-lg disabled:opacity-30 active:scale-90 transition-transform">
+                                        <ChevronRight size={18}/>
+                                    </button>
+                                </div>
+                            )}
+                        </header>
+
+                        {/* Main Content - Scrollable */}
+                        <main className="flex-1 overflow-y-auto smooth-scroll scrollbar-hide">
+                            <div className="p-4 pb-6 space-y-6">
+                                {view === 'dashboard' && (
+                                    <div className="space-y-6 animate-slide-up">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="col-span-1">
+                                                <ProgressBar 
+                                                    current={logs.protein} 
+                                                    target={targets.protein} 
+                                                    label="Protein" 
+                                                    unit="g" 
+                                                    icon={Utensils} 
+                                                    colorClass={{ bg: 'bg-emerald-50 dark:bg-emerald-900/30', text: 'text-emerald-800 dark:text-emerald-300', fill: 'bg-emerald-600 dark:bg-emerald-500' }} 
+                                                />
+                                            </div>
+                                            <div className="col-span-1">
+                                                <ProgressBar 
+                                                    current={logs.calories} 
+                                                    target={targets.calories} 
+                                                    label="Calories" 
+                                                    unit="" 
+                                                    icon={Flame} 
+                                                    colorClass={{ bg: 'bg-orange-50 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-300', fill: 'bg-orange-500' }} 
+                                                />
+                                            </div>
+                                            <div className="col-span-2 bg-white dark:bg-stone-900 p-5 rounded-3xl border border-stone-100 dark:border-stone-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+                                                <div className="flex justify-between items-center mb-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="p-2 rounded-full bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300">
+                                                            <Droplet size={18} />
+                                                        </div>
+                                                        <span className="font-medium text-stone-600 dark:text-stone-300">Water</span>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className="text-xl font-bold text-stone-800 dark:text-stone-100">{logs.water}</span>
+                                                        <span className="text-sm text-stone-400"> / {targets.water}oz</span>
+                                                    </div>
+                                                </div>
+                                                <div className="h-3 bg-stone-100 dark:bg-stone-800 rounded-full w-full overflow-hidden mb-4">
+                                                    <div className="h-full rounded-full transition-all duration-1000 ease-out bg-cyan-500" style={{ width: `${Math.min(100, (logs.water / targets.water) * 100)}%` }}/>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button onClick={() => handleWater(8)} className="flex-1 py-3 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-700 dark:text-cyan-300 font-bold rounded-2xl hover:bg-cyan-100 dark:hover:bg-cyan-900/40 transition-colors active:scale-95">+8oz</button>
+                                                    <button onClick={() => handleWater(16)} className="flex-1 py-3 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-700 dark:text-cyan-300 font-bold rounded-2xl hover:bg-cyan-100 dark:hover:bg-cyan-900/40 transition-colors active:scale-95">+16oz</button>
+                                                    <button onClick={() => handleWater(-8)} className="w-12 py-3 bg-stone-50 dark:bg-stone-800 text-stone-400 font-bold rounded-2xl hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors flex items-center justify-center active:scale-95">
+                                                        <Minus size={16}/>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button onClick={() => setShowAddModal(true)} className="w-full py-4 bg-stone-800 dark:bg-stone-700 text-stone-50 font-bold rounded-2xl shadow-xl shadow-stone-200 dark:shadow-none hover:bg-stone-700 dark:hover:bg-stone-600 transition-all flex items-center justify-center gap-2 active:scale-[0.98]">
+                                            <Plus size={20} /> Log Meal
+                                        </button>
+                                        <FoodLogList items={logs.items} onDelete={handleDelete} />
+                                    </div>
+                                )}
+                                {view === 'settings' && (
+                                    <SettingsView 
+                                        profile={profile} 
+                                        onUpdate={(p) => { setProfile(p); DB.saveProfile(p); }} 
+                                        onLogout={DB.clearAll} 
+                                        toggleTheme={() => setIsDark(!isDark)} 
+                                        isDark={isDark} 
+                                        onNavigate={setView} 
+                                    />
+                                )}
+                                {view === 'weekly' && <WeeklyView userId="local" />}
+                                {view === 'learn' && <CheatSheet />}
+                                {view === 'support' && <SupportView onBack={() => setView('settings')} />}
+                            </div>
+                        </main>
+
+                        {/* Bottom Navigation - Fixed */}
+                        <nav className="flex-none bg-white dark:bg-stone-900 border-t border-stone-100 dark:border-stone-800 px-6 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                            <div className="flex justify-between items-center w-full max-w-xs mx-auto">
+                                <button onClick={() => setView('dashboard')} className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-colors active:scale-90 ${view === 'dashboard' ? 'text-emerald-700 dark:text-emerald-400' : 'text-stone-400'}`}>
+                                    <LayoutDashboard size={24} />
+                                    <span className="text-[10px] font-bold">Daily</span>
+                                </button>
+                                <button onClick={() => setView('weekly')} className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-colors active:scale-90 ${view === 'weekly' ? 'text-emerald-700 dark:text-emerald-400' : 'text-stone-400'}`}>
+                                    <BarChart3 size={24} />
+                                    <span className="text-[10px] font-bold">Weekly</span>
+                                </button>
+                                <button onClick={() => setView('learn')} className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-colors active:scale-90 ${view === 'learn' ? 'text-emerald-700 dark:text-emerald-400' : 'text-stone-400'}`}>
+                                    <BookOpen size={24} />
+                                    <span className="text-[10px] font-bold">Learn</span>
+                                </button>
+                            </div>
+                        </nav>
+                    </div>
+
+                    {/* Modals */}
+                    <AddFoodModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} onAdd={handleAdd} onSaveCustom={handleSaveCustom} recentFoods={recentFoods} />
+                    <WeightUpdateModal isOpen={showWeightModal} onClose={() => setShowWeightModal(false)} currentWeight={profile.currentWeight} onUpdate={handleUpdateWeight} />
+                </div>
+            );
+        };
+
+        // Mount the app
+        const root = createRoot(document.getElementById('root'));
+        root.render(<Steady />);
+    </script>
+</body>
+</html>
